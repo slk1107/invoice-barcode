@@ -55,6 +55,7 @@
 		E259A05A2E75B0940029D3A9 /* Exceptions for "InvoiceBarcode" folder in "lockscreenExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				code/Code128Renderer.swift,
 				code/SharedData.swift,
 				code/ThemedBarcodeRenderer.swift,
 			);
