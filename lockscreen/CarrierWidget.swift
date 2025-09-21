@@ -69,21 +69,19 @@ struct CarrierWidgetView: View {
     var body: some View {
         ZStack {
             // Official background for consistency
-            AccessoryWidgetBackground()
+//            AccessoryWidgetBackground()
             
             if let barcodeImage = entry.barcodeImage, !entry.carrierNumber.isEmpty {
                 // Show barcode with white background for scanning
                 VStack(spacing: 0) {
                     Image(uiImage: barcodeImage)
+                        .renderingMode(.original)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
+                        .scaledToFill()
                         .frame(maxHeight: .infinity)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
                 }
                 .background(Color.white)
                 .cornerRadius(4)
-                .padding(3)
             } else {
                 // Show setup message when no carrier number
                 VStack(spacing: 4) {

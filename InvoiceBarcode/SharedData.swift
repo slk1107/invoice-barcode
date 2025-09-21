@@ -9,6 +9,7 @@ import CoreImage.CIFilterBuiltins
 class BarcodeGenerator {
     static func generateCode128(from text: String) -> UIImage? {
         // 如果文字為空，返回 nil
+        
         guard !text.isEmpty else { return nil }
         
         let filter = CIFilter.code128BarcodeGenerator()
@@ -17,13 +18,15 @@ class BarcodeGenerator {
         guard let outputImage = filter.outputImage else { return nil }
         
         // Scale up the barcode for better quality
-        let scaleX = 300.0 / outputImage.extent.width
-        let scaleY = 100.0 / outputImage.extent.height
+        let scaleX = 390.0 / outputImage.extent.width
+        let scaleY = 130.0 / outputImage.extent.height
         let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
         
         let context = CIContext()
         guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else { return nil }
-        
+        print("Original barcode size: \(outputImage.extent)")
+        print("Final barcode size: \(scaledImage.extent)")
+
         return UIImage(cgImage: cgImage)
     }
 }
