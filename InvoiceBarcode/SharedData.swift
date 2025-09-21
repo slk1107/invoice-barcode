@@ -18,7 +18,7 @@ class BarcodeGenerator {
         guard let outputImage = filter.outputImage else { return nil }
         
         // Scale up the barcode for better quality
-        let scaleX = 390.0 / outputImage.extent.width
+        let scaleX = 360.0 / outputImage.extent.width
         let scaleY = 130.0 / outputImage.extent.height
         let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
         
