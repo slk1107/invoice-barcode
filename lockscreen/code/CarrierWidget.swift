@@ -1,5 +1,14 @@
+//
+//  CarrierWidget.swift
+//  InvoiceBarcode
+//
+//  Created by Kris Lin on 2025/9/13.
+//
+
+
+
 // ===============================
-// File: CarrierWidget.swift (Widget Extension Target)
+// 檔案 4: CarrierWidget.swift (Widget Extension Target)
 // ===============================
 import WidgetKit
 import SwiftUI
@@ -9,33 +18,27 @@ struct CarrierEntry: TimelineEntry {
     let date: Date
     let carrierNumber: String
     let barcodeImage: UIImage?
-    let theme: BackgroundTheme
 }
 
 // MARK: - Widget Timeline Provider
 struct CarrierProvider: TimelineProvider {
     func placeholder(in context: Context) -> CarrierEntry {
-        let defaultTheme = ThemeManager.shared.getDefaultTheme()
-        let placeholderImage = generateThemedBarcode(carrierNumber: "/ABC123", theme: defaultTheme)
-        
+        let placeholderImage = BarcodeGenerator.generateCode128(from: "/ABC123")
         return CarrierEntry(
             date: Date(),
             carrierNumber: "/ABC123",
-            barcodeImage: placeholderImage,
-            theme: defaultTheme
+            barcodeImage: placeholderImage
         )
     }
     
     func getSnapshot(in context: Context, completion: @escaping (CarrierEntry) -> ()) {
         let carrierNumber = SharedUserDefaults.getCarrierNumber()
-        let currentTheme = SharedUserDefaults.getBackgroundTheme()
-        let barcodeImage = generateThemedBarcode(carrierNumber: carrierNumber, theme: currentTheme)
+        let barcodeImage = BarcodeGenerator.generateCode128(from: carrierNumber)
         
         let entry = CarrierEntry(
             date: Date(),
             carrierNumber: carrierNumber,
-            barcodeImage: barcodeImage,
-            theme: currentTheme
+            barcodeImage: barcodeImage
         )
         
         completion(entry)
@@ -43,14 +46,12 @@ struct CarrierProvider: TimelineProvider {
     
     func getTimeline(in context: Context, completion: @escaping (Timeline<CarrierEntry>) -> ()) {
         let carrierNumber = SharedUserDefaults.getCarrierNumber()
-        let currentTheme = SharedUserDefaults.getBackgroundTheme()
-        let barcodeImage = generateThemedBarcode(carrierNumber: carrierNumber, theme: currentTheme)
+        let barcodeImage = BarcodeGenerator.generateCode128(from: carrierNumber)
         
         let entry = CarrierEntry(
             date: Date(),
             carrierNumber: carrierNumber,
-            barcodeImage: barcodeImage,
-            theme: currentTheme
+            barcodeImage: barcodeImage
         )
         
         // Update every 24 hours
@@ -59,28 +60,40 @@ struct CarrierProvider: TimelineProvider {
         
         completion(timeline)
     }
-    
-    // Generate themed barcode using new renderer
-    private func generateThemedBarcode(carrierNumber: String, theme: BackgroundTheme) -> UIImage? {
-        return ThemedBarcodeRenderer.generateThemedBarcode(
-            carrierNumber: carrierNumber,
-            theme: theme,
-            size: CGSize(width: 300, height: 100)
-        )
-    }
 }
 
-// MARK: - Lock Screen Widget View (simplified)
+// MARK: - Lock Screen Widget View
 struct CarrierWidgetView: View {
     var entry: CarrierProvider.Entry
     
     var body: some View {
-        // Use the shared view with entry data
-        CarrierBarcodeWidgetView(
-            barcodeImage: entry.barcodeImage,
-            carrierNumber: entry.carrierNumber,
-            theme: entry.theme
-        )
+        ZStack {
+            // Official background for consistency
+//            AccessoryWidgetBackground()
+            
+            if let barcodeImage = entry.barcodeImage, !entry.carrierNumber.isEmpty {
+                // Show barcode with white background for scanning
+                VStack(spacing: 0) {
+                    Image(uiImage: barcodeImage)
+                        .renderingMode(.original)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxHeight: .infinity)
+                }
+                .background(Color.white)
+                .cornerRadius(4)
+            } else {
+                // Show setup message when no carrier number
+                VStack(spacing: 4) {
+                    Image(systemName: "qrcode")
+                        .font(.system(size: 16))
+                    Text("請設定載具")
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(.white)
+            }
+        }
     }
 }
 
@@ -114,13 +127,8 @@ struct CarrierWidgetBundle: WidgetBundle {
 #Preview(as: .accessoryRectangular) {
     CarrierWidget()
 } timeline: {
-    let defaultTheme = ThemeManager.shared.getDefaultTheme()
-    let sampleImage = ThemedBarcodeRenderer.generateThemedBarcode(
-        carrierNumber: "/ABC123",
-        theme: defaultTheme,
-        size: CGSize(width: 300, height: 100)
-    )
-    CarrierEntry(date: Date(), carrierNumber: "/ABC123", barcodeImage: sampleImage, theme: defaultTheme)
+    let sampleImage = BarcodeGenerator.generateCode128(from: "/ABC123")
+    CarrierEntry(date: Date(), carrierNumber: "/ABC123", barcodeImage: sampleImage)
     
-    CarrierEntry(date: .now, carrierNumber: "", barcodeImage: nil, theme: defaultTheme)
+    CarrierEntry(date: .now, carrierNumber: "", barcodeImage: nil)
 }
