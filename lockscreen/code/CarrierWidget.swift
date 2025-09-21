@@ -74,11 +74,15 @@ struct CarrierWidgetView: View {
             if let barcodeImage = entry.barcodeImage, !entry.carrierNumber.isEmpty {
                 // Show barcode with white background for scanning
                 VStack(spacing: 0) {
-                    Image(uiImage: barcodeImage)
-                        .renderingMode(.original)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxHeight: .infinity)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.white)
+                        .overlay(
+                            Image(uiImage: barcodeImage)
+                                .renderingMode(.none)
+                                .resizable()
+                                .scaledToFill()
+                                .clipped()
+                        )
                 }
                 .background(Color.white)
                 .cornerRadius(4)
