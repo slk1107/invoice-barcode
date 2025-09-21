@@ -1,3 +1,4 @@
+
 // ===============================
 // 檔案 2: ContentView.swift (主 App Target)
 // ===============================
@@ -8,14 +9,6 @@ struct ContentView: View {
     @State private var carrierNumber: String = ""
     @State private var showingAlert = false
     @State private var alertMessage = ""
-    
-    // Helper function to ensure carrier number starts with "/"
-    private func normalizeCarrierNumber(_ input: String) -> String {
-        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return trimmed }
-        
-        return trimmed.hasPrefix("/") ? trimmed : "/" + trimmed
-    }
     
     var body: some View {
         NavigationView {
@@ -48,18 +41,20 @@ struct ContentView: View {
                             .font(.system(.title3, design: .monospaced))
                             .autocapitalization(.allCharacters)
                             .disableAutocorrection(true)
+                        
+                        Text("請輸入完整的載具編號，包含開頭的符號")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                     .padding(.horizontal)
                     
                     // Preview Section
                     if !carrierNumber.isEmpty {
-                        let normalizedNumber = normalizeCarrierNumber(carrierNumber)
-                        
                         VStack(spacing: 12) {
                             Text("條碼預覽")
                                 .font(.headline)
                             
-                            if let barcodeImage = BarcodeGenerator.generateCode128(from: normalizedNumber) {
+                            if let barcodeImage = BarcodeGenerator.generateCode128(from: carrierNumber) {
                                 Image(uiImage: barcodeImage)
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
@@ -69,7 +64,7 @@ struct ContentView: View {
                                     .shadow(radius: 2)
                             }
                             
-                            Text(normalizedNumber)
+                            Text(carrierNumber)
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundColor(.secondary)
                         }
@@ -133,15 +128,15 @@ struct ContentView: View {
     }
     
     private func saveCarrierNumber() {
-        let normalizedNumber = normalizeCarrierNumber(carrierNumber)
+        let trimmedNumber = carrierNumber.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        guard !normalizedNumber.isEmpty else {
+        guard !trimmedNumber.isEmpty else {
             alertMessage = "請輸入有效的載具編號"
             showingAlert = true
             return
         }
         
-        SharedUserDefaults.saveCarrierNumber(normalizedNumber)
+        SharedUserDefaults.saveCarrierNumber(trimmedNumber)
         WidgetCenter.shared.reloadAllTimelines()
         
         // 驗證儲存成功
