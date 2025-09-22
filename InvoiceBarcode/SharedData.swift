@@ -4,30 +4,29 @@
 // ===============================
 import SwiftUI
 import CoreImage.CIFilterBuiltins
+import RSBarcodes_Swift
+import AVFoundation
 
 // MARK: - Barcode Generator
 class BarcodeGenerator {
     static func generateCode128(from text: String) -> UIImage? {
         // 如果文字為空，返回 nil
-        
         guard !text.isEmpty else { return nil }
         
-        let filter = CIFilter.code128BarcodeGenerator()
-        filter.message = Data(text.utf8)
+        // 嘗試生成 Code39（符合台灣財政部規格）
+        let generator = RSUnifiedCodeGenerator.shared
+        let targetSize = CGSize(width: 360, height: 130)
         
-        guard let outputImage = filter.outputImage else { return nil }
+        if let code39Image = generator.generateCode(
+            text,
+            machineReadableCodeObjectType: AVMetadataObject.ObjectType.code39.rawValue,
+            targetSize: targetSize
+        ) {
+            print("Generated Code39 barcode size: \(code39Image.size)")
+            return code39Image
+        }
         
-        // Scale up the barcode for better quality
-        let scaleX = 360.0 / outputImage.extent.width
-        let scaleY = 130.0 / outputImage.extent.height
-        let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
-        
-        let context = CIContext()
-        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else { return nil }
-        print("Original barcode size: \(outputImage.extent)")
-        print("Final barcode size: \(scaledImage.extent)")
-
-        return UIImage(cgImage: cgImage)
+        return nil
     }
 }
 
