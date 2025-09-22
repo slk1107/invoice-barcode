@@ -1,0 +1,15 @@
+{
+  "originHash" : "070784de28955b65d1465fc22398be73cef417e9d65a68a641fae8ec6a844d29",
+  "pins" : [
+    {
+      "identity" : "rsbarcodes_swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/yeahdongcn/RSBarcodes_Swift",
+      "state" : {
+        "revision" : "241de72a96f49b1545d5de3c00fae170c2675c41",
+        "version" : "5.2.0"
+      }
+    }
+  ],
+  "version" : 3
+}
