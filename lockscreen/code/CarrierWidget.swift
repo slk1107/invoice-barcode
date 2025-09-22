@@ -80,7 +80,7 @@ struct CarrierWidgetView: View {
                             Image(uiImage: barcodeImage)
                                 .renderingMode(.none)
                                 .resizable()
-                                .scaledToFill()
+                                .aspectRatio(contentMode: .fit)
                                 .clipped()
                         )
                 }
