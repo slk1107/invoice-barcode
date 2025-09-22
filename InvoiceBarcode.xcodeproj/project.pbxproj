@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E24479272E819CF30040B085 /* RSBarcodes_Swift in Frameworks */ = {isa = PBXBuildFile; productRef = E24479262E819CF30040B085 /* RSBarcodes_Swift */; };
+		E24479292E819CFE0040B085 /* RSBarcodes_Swift in Frameworks */ = {isa = PBXBuildFile; productRef = E24479282E819CFE0040B085 /* RSBarcodes_Swift */; };
 		E259A0392E75A6640029D3A9 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E259A0382E75A6630029D3A9 /* WidgetKit.framework */; };
 		E259A03B2E75A6640029D3A9 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E259A03A2E75A6640029D3A9 /* SwiftUI.framework */; };
 		E259A04C2E75A6650029D3A9 /* lockscreenExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E259A0362E75A6630029D3A9 /* lockscreenExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -87,6 +89,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E24479272E819CF30040B085 /* RSBarcodes_Swift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -94,6 +97,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E24479292E819CFE0040B085 /* RSBarcodes_Swift in Frameworks */,
 				E259A03B2E75A6640029D3A9 /* SwiftUI.framework in Frameworks */,
 				E259A0392E75A6640029D3A9 /* WidgetKit.framework in Frameworks */,
 			);
@@ -153,6 +157,7 @@
 			);
 			name = InvoiceBarcode;
 			packageProductDependencies = (
+				E24479262E819CF30040B085 /* RSBarcodes_Swift */,
 			);
 			productName = InvoiceBarcode;
 			productReference = E259A0242E75A6360029D3A9 /* InvoiceBarcode.app */;
@@ -175,6 +180,7 @@
 			);
 			name = lockscreenExtension;
 			packageProductDependencies = (
+				E24479282E819CFE0040B085 /* RSBarcodes_Swift */,
 			);
 			productName = lockscreenExtension;
 			productReference = E259A0362E75A6630029D3A9 /* lockscreenExtension.appex */;
@@ -207,6 +213,9 @@
 			);
 			mainGroup = E259A01B2E75A6360029D3A9;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E24479252E819C760040B085 /* XCRemoteSwiftPackageReference "RSBarcodes_Swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E259A0252E75A6360029D3A9 /* Products */;
 			projectDirPath = "";
@@ -457,7 +466,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = lockscreenExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = KBGW4ZM6CG;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = lockscreen/Info.plist;
@@ -485,7 +494,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = lockscreenExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = KBGW4ZM6CG;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = lockscreen/Info.plist;
@@ -537,6 +546,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E24479252E819C760040B085 /* XCRemoteSwiftPackageReference "RSBarcodes_Swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/yeahdongcn/RSBarcodes_Swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.2.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E24479262E819CF30040B085 /* RSBarcodes_Swift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E24479252E819C760040B085 /* XCRemoteSwiftPackageReference "RSBarcodes_Swift" */;
+			productName = RSBarcodes_Swift;
+		};
+		E24479282E819CFE0040B085 /* RSBarcodes_Swift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E24479252E819C760040B085 /* XCRemoteSwiftPackageReference "RSBarcodes_Swift" */;
+			productName = RSBarcodes_Swift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E259A01C2E75A6360029D3A9 /* Project object */;
 }
