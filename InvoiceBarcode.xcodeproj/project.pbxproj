@@ -47,17 +47,17 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E24479682E81A0590040B085 /* Exceptions for "InvoiceBarcode" folder in "lockscreenExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				SharedData.swift,
+			);
+			target = E259A0352E75A6630029D3A9 /* lockscreenExtension */;
+		};
 		E259A04D2E75A6650029D3A9 /* Exceptions for "lockscreen" folder in "lockscreenExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-			);
-			target = E259A0352E75A6630029D3A9 /* lockscreenExtension */;
-		};
-		E259A05A2E75B0940029D3A9 /* Exceptions for "InvoiceBarcode" folder in "lockscreenExtension" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				SharedData.swift,
 			);
 			target = E259A0352E75A6630029D3A9 /* lockscreenExtension */;
 		};
@@ -67,7 +67,7 @@
 		E259A0262E75A6360029D3A9 /* InvoiceBarcode */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				E259A05A2E75B0940029D3A9 /* Exceptions for "InvoiceBarcode" folder in "lockscreenExtension" target */,
+				E24479682E81A0590040B085 /* Exceptions for "InvoiceBarcode" folder in "lockscreenExtension" target */,
 			);
 			path = InvoiceBarcode;
 			sourceTree = "<group>";
