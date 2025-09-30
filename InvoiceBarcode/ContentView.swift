@@ -1,5 +1,5 @@
 // ===============================
-// 檔案 2: ContentView.swift (主 App Target)
+// File: ContentView.swift (Main App Target)
 // ===============================
 import SwiftUI
 import WidgetKit
@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var carrierNumber: String = ""
     @State private var showingAlert = false
     @State private var alertMessage = ""
+    @State private var showingPhotoEditor = false
     
     // Helper function to ensure carrier number starts with "/"
     private func normalizeCarrierNumber(_ input: String) -> String {
@@ -32,7 +33,7 @@ struct ContentView: View {
                             .font(.largeTitle)
                             .fontWeight(.bold)
                         
-                        Text("輸入載具編號，生成鎖定畫面條碼")
+                        Text("輸入載具編號,生成鎖定畫面條碼")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -95,6 +96,21 @@ struct ContentView: View {
                     .disabled(carrierNumber.isEmpty)
                     .padding(.horizontal)
                     
+                    // Photo Editor Button
+                    Button(action: { showingPhotoEditor = true }) {
+                        HStack {
+                            Image(systemName: "photo.badge.plus")
+                            Text("編輯照片")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.green)
+                        .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                    
                     Spacer()
                     
                     // Instructions
@@ -106,7 +122,7 @@ struct ContentView: View {
                             Label("鎖定 iPhone 螢幕", systemImage: "1.circle.fill")
                             Label("長按鎖定畫面進入編輯模式", systemImage: "2.circle.fill")
                             Label("點選「自訂」→「鎖定畫面」", systemImage: "3.circle.fill")
-                            Label("點選時鐘下方的 Widget 區域", systemImage: "4.circle.fill")
+                            Label("點選時間下方的 Widget 區域", systemImage: "4.circle.fill")
                             Label("選擇「發票載具條碼」", systemImage: "5.circle.fill")
                         }
                         .font(.caption)
@@ -127,6 +143,9 @@ struct ContentView: View {
         } message: {
             Text(alertMessage)
         }
+        .sheet(isPresented: $showingPhotoEditor) {
+            PhotoEditorView()
+        }
         .onAppear {
             carrierNumber = SharedUserDefaults.getCarrierNumber()
         }
@@ -144,11 +163,11 @@ struct ContentView: View {
         SharedUserDefaults.saveCarrierNumber(normalizedNumber)
         WidgetCenter.shared.reloadAllTimelines()
         
-        // 驗證儲存成功
+        // Verify save success
         let saved = SharedUserDefaults.getCarrierNumber()
         print("已儲存載具編號: \(saved)")
         
-        alertMessage = "載具編號已儲存！\n請到鎖定畫面新增 Widget"
+        alertMessage = "載具編號已儲存!\n請到鎖定畫面新增 Widget"
         showingAlert = true
     }
 }
