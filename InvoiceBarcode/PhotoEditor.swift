@@ -17,7 +17,7 @@ struct PhotoEditorView: View {
     @State private var barcodeOffset: CGSize = .zero
     @State private var barcodeScale: CGFloat = 1.0
     @State private var barcodeRotation: Angle = .zero
-    @State private var barcodeColor: UIColor = .black
+    @State private var selectedColorSchemeIndex: Int = 0
     
     // UI state
     @State private var showingSaveAlert = false
@@ -27,13 +27,7 @@ struct PhotoEditorView: View {
     // Constants
     private let barcodeInitialWidth: CGFloat = 150
     private let edgeMargin: CGFloat = 32
-    
-    // Available barcode colors
-    private let availableColors: [(name: String, color: UIColor)] = [
-        ("黑色", .black),
-        ("深藍", UIColor(red: 0, green: 0.2, blue: 0.4, alpha: 1)),
-        ("深綠", UIColor(red: 0, green: 0.3, blue: 0.2, alpha: 1))
-    ]
+    private let rotationSnapThreshold: Double = 5.0 // Degrees for snapping
     
     var body: some View {
         NavigationView {
@@ -128,6 +122,10 @@ struct PhotoEditorView: View {
                             .onChanged { value in
                                 barcodeRotation = value
                             }
+                            .onEnded { value in
+                                // Apply rotation snapping to 90 degree increments
+                                barcodeRotation = snapRotation(value)
+                            }
                     )
             }
         }
@@ -160,20 +158,28 @@ struct PhotoEditorView: View {
     // MARK: - Toolbar View
     private var toolbarView: some View {
         VStack(spacing: 16) {
-            // Color selector
+            // Color scheme selector
             HStack(spacing: 20) {
-                ForEach(availableColors, id: \.name) { colorOption in
+                ForEach(0..<BarcodeGenerator.colorSchemes.count, id: \.self) { index in
+                    let scheme = BarcodeGenerator.colorSchemes[index]
                     Button(action: {
-                        barcodeColor = colorOption.color
+                        selectedColorSchemeIndex = index
                         generateBarcode()
                     }) {
                         Circle()
-                            .fill(Color(colorOption.color))
+                            .fill(Color(scheme.foregroundColor))
                             .frame(width: 44, height: 44)
                             .overlay(
                                 Circle()
                                     .stroke(
-                                        barcodeColor == colorOption.color ? Color.white : Color.clear,
+                                        Color(scheme.backgroundColor),
+                                        lineWidth: 4
+                                    )
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(
+                                        selectedColorSchemeIndex == index ? Color.white : Color.clear,
                                         lineWidth: 3
                                     )
                             )
@@ -234,33 +240,37 @@ struct PhotoEditorView: View {
     private func generateBarcode() {
         let carrierNumber = SharedUserDefaults.getCarrierNumber()
         let number = carrierNumber.isEmpty ? "/ABC123" : carrierNumber
-        barcodeImage = BarcodeGenerator.generateCode128(from: number, color: barcodeColor)
+        let scheme = BarcodeGenerator.colorSchemes[selectedColorSchemeIndex]
+        barcodeImage = BarcodeGenerator.generateCode128(from: number, scheme: scheme)
     }
     
     private func resetBarcode() {
-        guard let image = selectedImage else { return }
-        
-        // Calculate initial position at bottom right
-        let imageWidth = image.size.width
-        let imageHeight = image.size.height
-        
-        let barcodeWidth = barcodeInitialWidth
-        let barcodeHeight = barcodeWidth * 0.36 // Approximate barcode aspect ratio
-        
-        // Calculate offset to place barcode at bottom right with margin
-        let offsetX = (imageWidth / 2) - (barcodeWidth / 2) - edgeMargin
-        let offsetY = (imageHeight / 2) - (barcodeHeight / 2) - edgeMargin
-        
-        barcodeOffset = CGSize(width: offsetX, height: offsetY)
+        // Reset to center position
+        barcodeOffset = .zero
         barcodeScale = 1.0
         barcodeRotation = .zero
-        barcodeColor = .black
+        selectedColorSchemeIndex = 0
         generateBarcode()
     }
     
+    private func snapRotation(_ angle: Angle) -> Angle {
+        let degrees = angle.degrees.truncatingRemainder(dividingBy: 360)
+        let normalizedDegrees = degrees < 0 ? degrees + 360 : degrees
+        
+        // Check proximity to 0, 90, 180, 270 degrees
+        let snapAngles: [Double] = [0, 90, 180, 270, 360]
+        
+        for snapAngle in snapAngles {
+            if abs(normalizedDegrees - snapAngle) <= rotationSnapThreshold {
+                return Angle(degrees: snapAngle == 360 ? 0 : snapAngle)
+            }
+        }
+        
+        return Angle(degrees: normalizedDegrees)
+    }
+    
     private func saveCompositeImage() {
-        guard let backgroundImage = selectedImage,
-              let barcodeImg = barcodeImage else {
+        guard let backgroundImage = selectedImage else {
             return
         }
         
@@ -271,62 +281,24 @@ struct PhotoEditorView: View {
             PHPhotoLibrary.requestAuthorization(for: .addOnly) { newStatus in
                 DispatchQueue.main.async {
                     if newStatus == .authorized {
-                        performImageComposite(backgroundImage: backgroundImage, barcodeImg: barcodeImg)
+                        // Temporarily save original image only for testing
+                        saveImageToLibrary(backgroundImage)
                     } else {
                         showingPermissionAlert = true
                     }
                 }
             }
         } else if status == .authorized {
-            performImageComposite(backgroundImage: backgroundImage, barcodeImg: barcodeImg)
+            // Temporarily save original image only for testing
+            saveImageToLibrary(backgroundImage)
         } else {
             showingPermissionAlert = true
         }
     }
     
-    private func performImageComposite(backgroundImage: UIImage, barcodeImg: UIImage) {
-        let renderer = UIGraphicsImageRenderer(size: backgroundImage.size)
-        
-        let compositeImage = renderer.image { context in
-            // Draw background image
-            backgroundImage.draw(at: .zero)
-            
-            // Calculate barcode final size and position
-            let barcodeWidth = barcodeInitialWidth * barcodeScale
-            let barcodeHeight = barcodeWidth * 0.36
-            
-            // Convert offset from view coordinates to image coordinates
-            let imageWidth = backgroundImage.size.width
-            let imageHeight = backgroundImage.size.height
-            
-            let centerX = imageWidth / 2 + barcodeOffset.width
-            let centerY = imageHeight / 2 + barcodeOffset.height
-            
-            let barcodeRect = CGRect(
-                x: centerX - barcodeWidth / 2,
-                y: centerY - barcodeHeight / 2,
-                width: barcodeWidth,
-                height: barcodeHeight
-            )
-            
-            // Save context state
-            context.cgContext.saveGState()
-            
-            // Apply rotation around barcode center
-            context.cgContext.translateBy(x: centerX, y: centerY)
-            context.cgContext.rotate(by: CGFloat(barcodeRotation.radians))
-            context.cgContext.translateBy(x: -centerX, y: -centerY)
-            
-            // Draw barcode
-            barcodeImg.draw(in: barcodeRect)
-            
-            // Restore context state
-            context.cgContext.restoreGState()
-        }
-        
-        // Save to photo library using modern PHPhotoLibrary API
+    private func saveImageToLibrary(_ image: UIImage) {
         PHPhotoLibrary.shared().performChanges({
-            PHAssetChangeRequest.creationRequestForAsset(from: compositeImage)
+            PHAssetChangeRequest.creationRequestForAsset(from: image)
         }) { success, error in
             DispatchQueue.main.async {
                 if success {

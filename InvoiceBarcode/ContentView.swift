@@ -143,7 +143,7 @@ struct ContentView: View {
         } message: {
             Text(alertMessage)
         }
-        .sheet(isPresented: $showingPhotoEditor) {
+        .fullScreenCover(isPresented: $showingPhotoEditor) {
             PhotoEditorView()
         }
         .onAppear {
