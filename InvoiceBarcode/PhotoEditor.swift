@@ -43,7 +43,7 @@ struct PhotoEditorView: View {
                 Color.black.ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    // Main canvas area
+                    // Main canvas area with iPhone screen ratio container
                     if let image = selectedImage {
                         canvasView(image: image)
                     } else {
@@ -97,124 +97,167 @@ struct PhotoEditorView: View {
     // MARK: - Canvas View
     private func canvasView(image: UIImage) -> some View {
         GeometryReader { geometry in
+            let availableWidth = geometry.size.width
+            let availableHeight = geometry.size.height
+            let containerSize = calculateContainerSize(availableWidth: availableWidth, availableHeight: availableHeight)
+            let imageAspect = image.size.width / image.size.height
+            let displayHeight = containerSize.width / imageAspect
+            
             ZStack {
-                // Background photo with transform
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .scaleEffect(imageScale)
-                    .offset(imageOffset)
-                    .gesture(
-                        MagnificationGesture()
-                            .onChanged { value in
-                                let newScale = lastImageScale * value
-                                imageScale = max(minimumImageScale, newScale)
-                            }
-                            .onEnded { value in
-                                lastImageScale = imageScale
-                                enforceMinimumScale()
-                            }
-                    )
-                    .simultaneousGesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                imageOffset = CGSize(
-                                    width: lastImageOffset.width + value.translation.width,
-                                    height: lastImageOffset.height + value.translation.height
-                                )
-                            }
-                            .onEnded { _ in
-                                lastImageOffset = imageOffset
-                            }
-                    )
-                
-                // Barcode overlay (follows background image transform)
-                if let barcode = barcodeImage {
-                    Image(uiImage: barcode)
+                // Layer 1: Editable content layer (image + barcode with gestures)
+                ZStack {
+                    // Background photo with transform
+                    Image(uiImage: image)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: barcodeInitialWidth * barcodeScale)
-                        .rotationEffect(barcodeRotation)
-                        .offset(barcodeOffset)
-                        .scaleEffect(imageScale)
-                        .offset(imageOffset)
+                        .frame(width: containerSize.width * imageScale, height: displayHeight * imageScale)
+                        .offset(x: imageOffset.width, y: imageOffset.height)
                         .gesture(
-                            DragGesture()
-                                .onChanged { value in
-                                    barcodeOffset = CGSize(
-                                        width: value.translation.width,
-                                        height: value.translation.height
-                                    )
-                                }
-                        )
-                        .simultaneousGesture(
                             MagnificationGesture()
                                 .onChanged { value in
-                                    barcodeScale = max(0.5, min(3.0, value))
+                                    let newScale = lastImageScale * value
+                                    imageScale = max(minimumImageScale, newScale)
+                                }
+                                .onEnded { value in
+                                    lastImageScale = imageScale
+                                    enforceMinimumScale()
                                 }
                         )
                         .simultaneousGesture(
-                            RotationGesture()
+                            DragGesture(minimumDistance: 0)
                                 .onChanged { value in
-                                    barcodeRotation = value
+                                    let currentHeight = displayHeight * imageScale
+                                    let currentWidth = containerSize.width * imageScale
+                                    
+                                    // Calculate potential new offset
+                                    var newOffsetX = lastImageOffset.width + value.translation.width
+                                    var newOffsetY = lastImageOffset.height + value.translation.height
+                                    
+                                    // Lock horizontal movement if image width equals container width
+                                    if currentWidth <= containerSize.width {
+                                        newOffsetX = 0
+                                    } else {
+                                        // Allow horizontal movement but limit range
+                                        let maxOffsetX = (currentWidth - containerSize.width) / 2
+                                        newOffsetX = max(-maxOffsetX, min(maxOffsetX, newOffsetX))
+                                    }
+                                    
+                                    // Lock vertical movement if image height is smaller than container
+                                    if currentHeight <= containerSize.height {
+                                        newOffsetY = 0
+                                    } else {
+                                        // Allow vertical movement but limit range
+                                        let maxOffsetY = (currentHeight - containerSize.height) / 2
+                                        newOffsetY = max(-maxOffsetY, min(maxOffsetY, newOffsetY))
+                                    }
+                                    
+                                    imageOffset = CGSize(width: newOffsetX, height: newOffsetY)
                                 }
-                                .onEnded { value in
-                                    barcodeRotation = snapRotation(value)
+                                .onEnded { _ in
+                                    lastImageOffset = imageOffset
                                 }
                         )
+                    
+                    // Barcode overlay (follows background image transform)
+                    if let barcode = barcodeImage {
+                        Image(uiImage: barcode)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: barcodeInitialWidth * barcodeScale)
+                            .rotationEffect(barcodeRotation)
+                            .offset(barcodeOffset)
+                            .scaleEffect(imageScale)
+                            .offset(imageOffset)
+                            .gesture(
+                                DragGesture()
+                                    .onChanged { value in
+                                        barcodeOffset = CGSize(
+                                            width: value.translation.width,
+                                            height: value.translation.height
+                                        )
+                                    }
+                            )
+                            .simultaneousGesture(
+                                MagnificationGesture()
+                                    .onChanged { value in
+                                        barcodeScale = max(0.5, min(3.0, value))
+                                    }
+                            )
+                            .simultaneousGesture(
+                                RotationGesture()
+                                    .onChanged { value in
+                                        barcodeRotation = value
+                                    }
+                                    .onEnded { value in
+                                        barcodeRotation = snapRotation(value)
+                                    }
+                            )
+                    }
                 }
+                .frame(width: containerSize.width, height: containerSize.height)
+                .clipped()
+                .background(Color.black)
                 
-                // Lock screen overlay elements
-                lockScreenOverlay
+                // Layer 2: Fixed UI overlay (completely independent, same bounds as Layer 1)
+                lockScreenOverlay(screenWidth: containerSize.width, screenHeight: containerSize.height)
+                    .frame(width: containerSize.width, height: containerSize.height)
+                    .allowsHitTesting(false)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black)
             .onAppear {
-                displayedImageSize = calculateDisplayedSize(imageSize: image.size, viewSize: geometry.size)
+                displayedImageSize = CGSize(width: containerSize.width, height: displayHeight)
             }
             .onChange(of: geometry.size) { _, _ in
-                displayedImageSize = calculateDisplayedSize(imageSize: image.size, viewSize: geometry.size)
+                displayedImageSize = CGSize(width: containerSize.width, height: displayHeight)
             }
         }
     }
     
+    private func calculateContainerSize(availableWidth: CGFloat, availableHeight: CGFloat) -> CGSize {
+        let screenAspect = UIScreen.main.bounds.width / UIScreen.main.bounds.height
+        let availableAspect = availableWidth / availableHeight
+        
+        if availableAspect > screenAspect {
+            // Available space is wider, fit to height
+            return CGSize(width: availableHeight * screenAspect, height: availableHeight)
+        } else {
+            // Available space is taller, fit to width
+            return CGSize(width: availableWidth, height: availableWidth / screenAspect)
+        }
+    }
+    
     // MARK: - Lock Screen Overlay
-    private var lockScreenOverlay: some View {
-        VStack {
-            // Date and Time
-            VStack(spacing: 4) {
-                Text(formattedDate())
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(.white)
-                
-                Text(formattedTime())
-                    .font(.system(size: 64, weight: .thin))
-                    .foregroundColor(.white)
-            }
-            .padding(.top, 60)
+    private func lockScreenOverlay(screenWidth: CGFloat, screenHeight: CGFloat) -> some View {
+        ZStack {
+            // Date
+            Text(formattedDate())
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(.white)
+                .position(x: screenWidth / 2, y: screenHeight * 0.12)
             
-            Spacer()
+            // Time
+            Text(formattedTime())
+                .font(.system(size: 64, weight: .thin))
+                .foregroundColor(.white)
+                .position(x: screenWidth / 2, y: screenHeight * 0.2)
             
-            // Flashlight and Camera
-            HStack {
-                Image(systemName: "flashlight.off.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(.white)
-                    .frame(width: 50, height: 50)
-                    .background(Color.white.opacity(0.2))
-                    .clipShape(Circle())
-                
-                Spacer()
-                
-                Image(systemName: "camera.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(.white)
-                    .frame(width: 50, height: 50)
-                    .background(Color.white.opacity(0.2))
-                    .clipShape(Circle())
-            }
-            .padding(.horizontal, 40)
-            .padding(.bottom, 40)
+            // Flashlight (bottom left)
+            Image(systemName: "flashlight.off.fill")
+                .font(.system(size: 24))
+                .foregroundColor(.white)
+                .frame(width: 50, height: 50)
+                .background(Color.white.opacity(0.2))
+                .clipShape(Circle())
+                .position(x: 50, y: screenHeight - 50)
+            
+            // Camera (bottom right)
+            Image(systemName: "camera.fill")
+                .font(.system(size: 24))
+                .foregroundColor(.white)
+                .frame(width: 50, height: 50)
+                .background(Color.white.opacity(0.2))
+                .clipShape(Circle())
+                .position(x: screenWidth - 50, y: screenHeight - 50)
         }
         .allowsHitTesting(false)
     }
