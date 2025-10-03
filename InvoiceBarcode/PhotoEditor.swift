@@ -12,6 +12,8 @@ struct PhotoEditorView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedImage: UIImage?
     @State private var displayedImageSize: CGSize = .zero
+    @State private var topExtensionImage: UIImage?
+    @State private var topExtensionHeight: CGFloat = 0
     
     // Barcode state
     @State private var barcodeImage: UIImage?
@@ -19,6 +21,8 @@ struct PhotoEditorView: View {
     @State private var barcodeScale: CGFloat = 1.0
     @State private var barcodeRotation: Angle = .zero
     @State private var selectedColorSchemeIndex: Int = 0
+    @State private var lastBarcodeOffset: CGSize = .zero
+    @State private var lastBarcodeScale: CGFloat = 1.0
     
     // Background image transform state
     @State private var imageScale: CGFloat = 1.0
@@ -36,6 +40,7 @@ struct PhotoEditorView: View {
     private let edgeMargin: CGFloat = 32
     private let rotationSnapThreshold: Double = 5.0 // Degrees for snapping
     private let minimumImageScale: CGFloat = 1.0 // Minimum scale to fill screen
+    private let extensionRatio: CGFloat = 1.0 / 3.0 // Extension height is 1/3 of image short edge
     
     var body: some View {
         NavigationView {
@@ -100,62 +105,87 @@ struct PhotoEditorView: View {
             let availableWidth = geometry.size.width
             let availableHeight = geometry.size.height
             let containerSize = calculateContainerSize(availableWidth: availableWidth, availableHeight: availableHeight)
-            let imageAspect = image.size.width / image.size.height
-            let displayHeight = containerSize.width / imageAspect
+            
+            let extendedImageHeight = image.size.height + topExtensionHeight
+            let baseScale = calculateBaseScale(
+                imageWidth: image.size.width,
+                extendedHeight: extendedImageHeight,
+                containerSize: containerSize
+            )
+            
+            let magnifyGesture = MagnificationGesture()
+                .onChanged { value in
+                    let newScale = lastImageScale * value
+                    let minScale = max(
+                        containerSize.width / (image.size.width * baseScale),
+                        containerSize.height / (extendedImageHeight * baseScale)
+                    )
+                    imageScale = max(minScale, newScale)
+                }
+                .onEnded { _ in
+                    lastImageScale = imageScale
+                }
+            
+            // Ensure minimum scale on first render
+            let minRequiredScale = max(
+                containerSize.width / (image.size.width * baseScale),
+                containerSize.height / (extendedImageHeight * baseScale)
+            )
+            
+            let panGesture = DragGesture()
+                .onChanged { value in
+                    let w = image.size.width * baseScale * imageScale
+                    let h = image.size.height * baseScale * imageScale
+                    let eh = topExtensionHeight * baseScale * imageScale
+                    
+                    var x = lastImageOffset.width + value.translation.width
+                    var y = lastImageOffset.height + value.translation.height
+                    
+                    let maxX = max(0, (w - containerSize.width) / 2)
+                    x = max(-maxX, min(maxX, x))
+                    
+                    let topY = (h + eh - containerSize.height) / 2
+                    let bottomY = (h - containerSize.height) / 2
+                    y = max(-bottomY, min(topY, y))
+                    
+                    imageOffset = CGSize(width: x, height: y)
+                }
+                .onEnded { _ in
+                    lastImageOffset = imageOffset
+                }
+            
+            let displayImageWidth = image.size.width * baseScale * imageScale
+            let displayImageHeight = image.size.height * baseScale * imageScale
+            let displayExtensionHeight = topExtensionHeight * baseScale * imageScale
             
             ZStack {
                 // Layer 1: Editable content layer (image + barcode with gestures)
                 ZStack {
+                    // Top extension area (blurred top edge of image)
+                    if let topExtension = topExtensionImage {
+                        let extensionWidth = image.size.width * baseScale
+                        let extensionHeight = topExtensionHeight * baseScale
+                        let imageHeight = image.size.height * baseScale * imageScale
+                        let extHeight = topExtensionHeight * baseScale * imageScale
+                        let offsetY = imageOffset.height - (imageHeight / 2) - (extHeight / 2)
+                        
+                        Image(uiImage: topExtension)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: extensionWidth, height: extensionHeight)
+                            .blur(radius: 20)
+                            .scaleEffect(imageScale)
+                            .offset(x: imageOffset.width, y: offsetY)
+                    }
+                    
                     // Background photo with transform
                     Image(uiImage: image)
                         .resizable()
-                        .frame(width: containerSize.width * imageScale, height: displayHeight * imageScale)
+                        .frame(width: image.size.width * baseScale, height: image.size.height * baseScale)
+                        .scaleEffect(imageScale)
                         .offset(x: imageOffset.width, y: imageOffset.height)
-                        .gesture(
-                            MagnificationGesture()
-                                .onChanged { value in
-                                    let newScale = lastImageScale * value
-                                    imageScale = max(minimumImageScale, newScale)
-                                }
-                                .onEnded { value in
-                                    lastImageScale = imageScale
-                                    enforceMinimumScale()
-                                }
-                        )
-                        .simultaneousGesture(
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { value in
-                                    let currentHeight = displayHeight * imageScale
-                                    let currentWidth = containerSize.width * imageScale
-                                    
-                                    // Calculate potential new offset
-                                    var newOffsetX = lastImageOffset.width + value.translation.width
-                                    var newOffsetY = lastImageOffset.height + value.translation.height
-                                    
-                                    // Lock horizontal movement if image width equals container width
-                                    if currentWidth <= containerSize.width {
-                                        newOffsetX = 0
-                                    } else {
-                                        // Allow horizontal movement but limit range
-                                        let maxOffsetX = (currentWidth - containerSize.width) / 2
-                                        newOffsetX = max(-maxOffsetX, min(maxOffsetX, newOffsetX))
-                                    }
-                                    
-                                    // Lock vertical movement if image height is smaller than container
-                                    if currentHeight <= containerSize.height {
-                                        newOffsetY = 0
-                                    } else {
-                                        // Allow vertical movement but limit range
-                                        let maxOffsetY = (currentHeight - containerSize.height) / 2
-                                        newOffsetY = max(-maxOffsetY, min(maxOffsetY, newOffsetY))
-                                    }
-                                    
-                                    imageOffset = CGSize(width: newOffsetX, height: newOffsetY)
-                                }
-                                .onEnded { _ in
-                                    lastImageOffset = imageOffset
-                                }
-                        )
+                        .gesture(magnifyGesture)
+                        .simultaneousGesture(panGesture)
                     
                     // Barcode overlay (follows background image transform)
                     if let barcode = barcodeImage {
@@ -171,15 +201,22 @@ struct PhotoEditorView: View {
                                 DragGesture()
                                     .onChanged { value in
                                         barcodeOffset = CGSize(
-                                            width: value.translation.width,
-                                            height: value.translation.height
+                                            width: lastBarcodeOffset.width + value.translation.width / imageScale,
+                                            height: lastBarcodeOffset.height + value.translation.height / imageScale
                                         )
+                                    }
+                                    .onEnded { _ in
+                                        lastBarcodeOffset = barcodeOffset
                                     }
                             )
                             .simultaneousGesture(
                                 MagnificationGesture()
                                     .onChanged { value in
-                                        barcodeScale = max(0.5, min(3.0, value))
+                                        barcodeScale = lastBarcodeScale * value
+                                        barcodeScale = max(0.5, min(3.0, barcodeScale))
+                                    }
+                                    .onEnded { _ in
+                                        lastBarcodeScale = barcodeScale
                                     }
                             )
                             .simultaneousGesture(
@@ -205,10 +242,19 @@ struct PhotoEditorView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black)
             .onAppear {
-                displayedImageSize = CGSize(width: containerSize.width, height: displayHeight)
+                // Set initial scale to fill container
+                let minScale = max(
+                    containerSize.width / (image.size.width * baseScale),
+                    containerSize.height / ((image.size.height + topExtensionHeight) * baseScale)
+                )
+                if imageScale < minScale {
+                    imageScale = minScale
+                    lastImageScale = minScale
+                }
+                displayedImageSize = CGSize(width: image.size.width * baseScale, height: image.size.height * baseScale)
             }
             .onChange(of: geometry.size) { _, _ in
-                displayedImageSize = CGSize(width: containerSize.width, height: displayHeight)
+                displayedImageSize = CGSize(width: image.size.width * baseScale, height: image.size.height * baseScale)
             }
         }
     }
@@ -223,6 +269,19 @@ struct PhotoEditorView: View {
         } else {
             // Available space is taller, fit to width
             return CGSize(width: availableWidth, height: availableWidth / screenAspect)
+        }
+    }
+    
+    private func calculateBaseScale(imageWidth: CGFloat, extendedHeight: CGFloat, containerSize: CGSize) -> CGFloat {
+        let extendedImageAspect = imageWidth / extendedHeight
+        let containerAspect = containerSize.width / containerSize.height
+        
+        if extendedImageAspect > containerAspect {
+            // Image is wider, fit to height
+            return containerSize.height / extendedHeight
+        } else {
+            // Image is taller, fit to width
+            return containerSize.width / imageWidth
         }
     }
     
@@ -386,6 +445,12 @@ struct PhotoEditorView: View {
             if let data = try? await item.loadTransferable(type: Data.self),
                let image = UIImage(data: data) {
                 selectedImage = image
+                
+                // Calculate extension height based on short edge
+                let shortEdge = min(image.size.width, image.size.height)
+                topExtensionHeight = shortEdge * extensionRatio
+                
+                topExtensionImage = createTopExtension(from: image, height: topExtensionHeight)
                 resetBarcode()
             }
         }
@@ -404,6 +469,8 @@ struct PhotoEditorView: View {
         barcodeScale = 1.0
         barcodeRotation = .zero
         selectedColorSchemeIndex = 0
+        lastBarcodeOffset = .zero
+        lastBarcodeScale = 1.0
         
         // Reset background image transform
         imageScale = 1.0
@@ -434,6 +501,33 @@ struct PhotoEditorView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: Date())
+    }
+    
+    private func createTopExtension(from image: UIImage, height: CGFloat) -> UIImage? {
+        guard let cgImage = image.cgImage else { return nil }
+        
+        // Crop top 1 pixel row
+        let cropHeight: CGFloat = 1
+        let scale = image.scale
+        
+        let cropRect = CGRect(
+            x: 0,
+            y: 0,
+            width: cgImage.width,
+            height: Int(cropHeight * scale)
+        )
+        
+        guard let croppedCGImage = cgImage.cropping(to: cropRect) else { return nil }
+        
+        // Create extension by stretching the top pixel
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: image.size.width, height: height))
+        
+        let extendedImage = renderer.image { context in
+            let rect = CGRect(x: 0, y: 0, width: image.size.width, height: height)
+            context.cgContext.draw(croppedCGImage, in: rect)
+        }
+        
+        return extendedImage
     }
     
     private func snapRotation(_ angle: Angle) -> Angle {
