@@ -20,6 +20,12 @@ struct PhotoEditorView: View {
     @State private var barcodeRotation: Angle = .zero
     @State private var selectedColorSchemeIndex: Int = 0
     
+    // Background image transform state
+    @State private var imageScale: CGFloat = 1.0
+    @State private var imageOffset: CGSize = .zero
+    @State private var lastImageScale: CGFloat = 1.0
+    @State private var lastImageOffset: CGSize = .zero
+    
     // UI state
     @State private var showingSaveAlert = false
     @State private var saveAlertMessage = ""
@@ -29,6 +35,7 @@ struct PhotoEditorView: View {
     private let barcodeInitialWidth: CGFloat = 150
     private let edgeMargin: CGFloat = 32
     private let rotationSnapThreshold: Double = 5.0 // Degrees for snapping
+    private let minimumImageScale: CGFloat = 1.0 // Minimum scale to fill screen
     
     var body: some View {
         NavigationView {
@@ -66,7 +73,7 @@ struct PhotoEditorView: View {
                     }
                 }
             } message: {
-                Text(saveAlertMessage)
+                Text(saveAlertMessage + "\n\n如何設定為桌布：\n1. 開啟「照片」app\n2. 選擇剛儲存的照片\n3. 點擊分享按鈕\n4. 選擇「用作桌布」")
             }
             .alert("需要權限", isPresented: $showingPermissionAlert) {
                 Button("前往設定", role: .none) {
@@ -91,12 +98,37 @@ struct PhotoEditorView: View {
     private func canvasView(image: UIImage) -> some View {
         GeometryReader { geometry in
             ZStack {
-                // Background photo
+                // Background photo with transform
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
+                    .scaleEffect(imageScale)
+                    .offset(imageOffset)
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                let newScale = lastImageScale * value
+                                imageScale = max(minimumImageScale, newScale)
+                            }
+                            .onEnded { value in
+                                lastImageScale = imageScale
+                                enforceMinimumScale()
+                            }
+                    )
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                imageOffset = CGSize(
+                                    width: lastImageOffset.width + value.translation.width,
+                                    height: lastImageOffset.height + value.translation.height
+                                )
+                            }
+                            .onEnded { _ in
+                                lastImageOffset = imageOffset
+                            }
+                    )
                 
-                // Barcode overlay
+                // Barcode overlay (follows background image transform)
                 if let barcode = barcodeImage {
                     Image(uiImage: barcode)
                         .resizable()
@@ -104,6 +136,8 @@ struct PhotoEditorView: View {
                         .frame(width: barcodeInitialWidth * barcodeScale)
                         .rotationEffect(barcodeRotation)
                         .offset(barcodeOffset)
+                        .scaleEffect(imageScale)
+                        .offset(imageOffset)
                         .gesture(
                             DragGesture()
                                 .onChanged { value in
@@ -125,11 +159,13 @@ struct PhotoEditorView: View {
                                     barcodeRotation = value
                                 }
                                 .onEnded { value in
-                                    // Apply rotation snapping to 90 degree increments
                                     barcodeRotation = snapRotation(value)
                                 }
                         )
                 }
+                
+                // Lock screen overlay elements
+                lockScreenOverlay
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black)
@@ -140,6 +176,47 @@ struct PhotoEditorView: View {
                 displayedImageSize = calculateDisplayedSize(imageSize: image.size, viewSize: geometry.size)
             }
         }
+    }
+    
+    // MARK: - Lock Screen Overlay
+    private var lockScreenOverlay: some View {
+        VStack {
+            // Date and Time
+            VStack(spacing: 4) {
+                Text(formattedDate())
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(.white)
+                
+                Text(formattedTime())
+                    .font(.system(size: 64, weight: .thin))
+                    .foregroundColor(.white)
+            }
+            .padding(.top, 60)
+            
+            Spacer()
+            
+            // Flashlight and Camera
+            HStack {
+                Image(systemName: "flashlight.off.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.white)
+                    .frame(width: 50, height: 50)
+                    .background(Color.white.opacity(0.2))
+                    .clipShape(Circle())
+                
+                Spacer()
+                
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.white)
+                    .frame(width: 50, height: 50)
+                    .background(Color.white.opacity(0.2))
+                    .clipShape(Circle())
+            }
+            .padding(.horizontal, 40)
+            .padding(.bottom, 40)
+        }
+        .allowsHitTesting(false)
     }
     
     private func calculateDisplayedSize(imageSize: CGSize, viewSize: CGSize) -> CGSize {
@@ -185,7 +262,13 @@ struct PhotoEditorView: View {
     
     // MARK: - Toolbar View
     private var toolbarView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 12) {
+            // Preview disclaimer
+            Text("以上元素僅供預覽，不會出現在最終圖片")
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.7))
+                .padding(.horizontal)
+            
             // Color scheme selector
             HStack(spacing: 20) {
                 ForEach(0..<BarcodeGenerator.colorSchemes.count, id: \.self) { index in
@@ -278,7 +361,36 @@ struct PhotoEditorView: View {
         barcodeScale = 1.0
         barcodeRotation = .zero
         selectedColorSchemeIndex = 0
+        
+        // Reset background image transform
+        imageScale = 1.0
+        imageOffset = .zero
+        lastImageScale = 1.0
+        lastImageOffset = .zero
+        
         generateBarcode()
+    }
+    
+    private func enforceMinimumScale() {
+        if imageScale < minimumImageScale {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                imageScale = minimumImageScale
+                lastImageScale = minimumImageScale
+            }
+        }
+    }
+    
+    private func formattedDate() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_TW")
+        formatter.dateFormat = "EEEE M月d日"
+        return formatter.string(from: Date())
+    }
+    
+    private func formattedTime() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: Date())
     }
     
     private func snapRotation(_ angle: Angle) -> Angle {
@@ -362,13 +474,17 @@ struct PhotoEditorView: View {
                 // Draw background image
                 backgroundImage.draw(in: CGRect(origin: .zero, size: finalSize))
                 
-                // Calculate barcode size in final image coordinates
-                let barcodeWidth = barcodeInitialWidth * barcodeScale * displayToFinalScale
+                // Calculate barcode size considering both user scale and image scale
+                let totalBarcodeScale = barcodeScale * imageScale
+                let barcodeWidth = barcodeInitialWidth * totalBarcodeScale * displayToFinalScale
                 let barcodeHeight = barcodeWidth * (barcodeImg.size.height / barcodeImg.size.width)
                 
-                // Calculate barcode position in final image coordinates
-                let centerX = (finalSize.width / 2) + (barcodeOffset.width * displayToFinalScale)
-                let centerY = (finalSize.height / 2) + (barcodeOffset.height * displayToFinalScale)
+                // Calculate barcode position considering image offset and scale
+                let totalOffsetX = (barcodeOffset.width * imageScale) + imageOffset.width
+                let totalOffsetY = (barcodeOffset.height * imageScale) + imageOffset.height
+                
+                let centerX = (finalSize.width / 2) + (totalOffsetX * displayToFinalScale)
+                let centerY = (finalSize.height / 2) + (totalOffsetY * displayToFinalScale)
                 
                 // Save context state
                 context.cgContext.saveGState()
