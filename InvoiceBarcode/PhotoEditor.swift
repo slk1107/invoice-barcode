@@ -11,6 +11,7 @@ struct PhotoEditorView: View {
     // Photo picker state
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedImage: UIImage?
+    @State private var displayedImageSize: CGSize = .zero
     
     // Barcode state
     @State private var barcodeImage: UIImage?
@@ -88,49 +89,76 @@ struct PhotoEditorView: View {
     
     // MARK: - Canvas View
     private func canvasView(image: UIImage) -> some View {
-        ZStack {
-            // Background photo
-            Image(uiImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-            
-            // Barcode overlay
-            if let barcode = barcodeImage {
-                Image(uiImage: barcode)
+        GeometryReader { geometry in
+            ZStack {
+                // Background photo
+                Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: barcodeInitialWidth * barcodeScale)
-                    .rotationEffect(barcodeRotation)
-                    .offset(barcodeOffset)
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                barcodeOffset = CGSize(
-                                    width: value.translation.width,
-                                    height: value.translation.height
-                                )
-                            }
-                    )
-                    .simultaneousGesture(
-                        MagnificationGesture()
-                            .onChanged { value in
-                                barcodeScale = max(0.5, min(3.0, value))
-                            }
-                    )
-                    .simultaneousGesture(
-                        RotationGesture()
-                            .onChanged { value in
-                                barcodeRotation = value
-                            }
-                            .onEnded { value in
-                                // Apply rotation snapping to 90 degree increments
-                                barcodeRotation = snapRotation(value)
-                            }
-                    )
+                
+                // Barcode overlay
+                if let barcode = barcodeImage {
+                    Image(uiImage: barcode)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: barcodeInitialWidth * barcodeScale)
+                        .rotationEffect(barcodeRotation)
+                        .offset(barcodeOffset)
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    barcodeOffset = CGSize(
+                                        width: value.translation.width,
+                                        height: value.translation.height
+                                    )
+                                }
+                        )
+                        .simultaneousGesture(
+                            MagnificationGesture()
+                                .onChanged { value in
+                                    barcodeScale = max(0.5, min(3.0, value))
+                                }
+                        )
+                        .simultaneousGesture(
+                            RotationGesture()
+                                .onChanged { value in
+                                    barcodeRotation = value
+                                }
+                                .onEnded { value in
+                                    // Apply rotation snapping to 90 degree increments
+                                    barcodeRotation = snapRotation(value)
+                                }
+                        )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black)
+            .onAppear {
+                displayedImageSize = calculateDisplayedSize(imageSize: image.size, viewSize: geometry.size)
+            }
+            .onChange(of: geometry.size) { _, _ in
+                displayedImageSize = calculateDisplayedSize(imageSize: image.size, viewSize: geometry.size)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
+    }
+    
+    private func calculateDisplayedSize(imageSize: CGSize, viewSize: CGSize) -> CGSize {
+        let imageAspect = imageSize.width / imageSize.height
+        let viewAspect = viewSize.width / viewSize.height
+        
+        if imageAspect > viewAspect {
+            // Image is wider, fit to width
+            return CGSize(
+                width: viewSize.width,
+                height: viewSize.width / imageAspect
+            )
+        } else {
+            // Image is taller, fit to height
+            return CGSize(
+                width: viewSize.height * imageAspect,
+                height: viewSize.height
+            )
+        }
     }
     
     // MARK: - Photo Picker Placeholder
@@ -270,7 +298,8 @@ struct PhotoEditorView: View {
     }
     
     private func saveCompositeImage() {
-        guard let backgroundImage = selectedImage else {
+        guard let backgroundImage = selectedImage,
+              let barcodeImg = barcodeImage else {
             return
         }
         
@@ -281,18 +310,88 @@ struct PhotoEditorView: View {
             PHPhotoLibrary.requestAuthorization(for: .addOnly) { newStatus in
                 DispatchQueue.main.async {
                     if newStatus == .authorized {
-                        // Temporarily save original image only for testing
-                        saveImageToLibrary(backgroundImage)
+                        performImageComposite(backgroundImage: backgroundImage, barcodeImg: barcodeImg)
                     } else {
                         showingPermissionAlert = true
                     }
                 }
             }
         } else if status == .authorized {
-            // Temporarily save original image only for testing
-            saveImageToLibrary(backgroundImage)
+            performImageComposite(backgroundImage: backgroundImage, barcodeImg: barcodeImg)
         } else {
             showingPermissionAlert = true
+        }
+    }
+    
+    private func performImageComposite(backgroundImage: UIImage, barcodeImg: UIImage) {
+        autoreleasepool {
+            let originalSize = backgroundImage.size
+            let maxDimension: CGFloat = 3000
+            
+            // Calculate if we need to resize
+            let needsResize = originalSize.width > maxDimension || originalSize.height > maxDimension
+            
+            let finalSize: CGSize
+            let resizeScale: CGFloat
+            
+            if needsResize {
+                if originalSize.width > originalSize.height {
+                    resizeScale = maxDimension / originalSize.width
+                } else {
+                    resizeScale = maxDimension / originalSize.height
+                }
+                finalSize = CGSize(width: originalSize.width * resizeScale, height: originalSize.height * resizeScale)
+            } else {
+                resizeScale = 1.0
+                finalSize = originalSize
+            }
+            
+            // Calculate scale from displayed size to final size
+            guard displayedImageSize.width > 0 && displayedImageSize.height > 0 else {
+                saveAlertMessage = "儲存失敗,請重試"
+                showingSaveAlert = true
+                return
+            }
+            
+            let displayToFinalScale = finalSize.width / displayedImageSize.width
+            
+            // Create composite image
+            let renderer = UIGraphicsImageRenderer(size: finalSize)
+            
+            let compositeImage = renderer.image { context in
+                // Draw background image
+                backgroundImage.draw(in: CGRect(origin: .zero, size: finalSize))
+                
+                // Calculate barcode size in final image coordinates
+                let barcodeWidth = barcodeInitialWidth * barcodeScale * displayToFinalScale
+                let barcodeHeight = barcodeWidth * (barcodeImg.size.height / barcodeImg.size.width)
+                
+                // Calculate barcode position in final image coordinates
+                let centerX = (finalSize.width / 2) + (barcodeOffset.width * displayToFinalScale)
+                let centerY = (finalSize.height / 2) + (barcodeOffset.height * displayToFinalScale)
+                
+                // Save context state
+                context.cgContext.saveGState()
+                
+                // Apply rotation
+                context.cgContext.translateBy(x: centerX, y: centerY)
+                context.cgContext.rotate(by: CGFloat(barcodeRotation.radians))
+                
+                // Draw barcode
+                let barcodeRect = CGRect(
+                    x: -barcodeWidth / 2,
+                    y: -barcodeHeight / 2,
+                    width: barcodeWidth,
+                    height: barcodeHeight
+                )
+                
+                barcodeImg.draw(in: barcodeRect)
+                
+                // Restore context state
+                context.cgContext.restoreGState()
+            }
+            
+            saveImageToLibrary(compositeImage)
         }
     }
     
