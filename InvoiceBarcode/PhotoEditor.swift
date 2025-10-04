@@ -25,6 +25,31 @@ struct PhotoEditorView: View {
     @State private var lastBarcodeScale: CGFloat = 1.0
     @State private var lastBarcodeRotation: Angle = .zero
     
+    // Text layers state
+    @State private var text1: String = "你為什麼要打開手機？"
+    @State private var text1Offset: CGSize = .zero
+    @State private var text1Scale: CGFloat = 1.0
+    @State private var text1Rotation: Angle = .zero
+    @State private var lastText1Offset: CGSize = .zero
+    @State private var lastText1Scale: CGFloat = 1.0
+    @State private var lastText1Rotation: Angle = .zero
+    
+    @State private var text2: String = "你要看多久？"
+    @State private var text2Offset: CGSize = .zero
+    @State private var text2Scale: CGFloat = 1.0
+    @State private var text2Rotation: Angle = .zero
+    @State private var lastText2Offset: CGSize = .zero
+    @State private var lastText2Scale: CGFloat = 1.0
+    @State private var lastText2Rotation: Angle = .zero
+    
+    @State private var text3: String = "你還能去做什麼？"
+    @State private var text3Offset: CGSize = .zero
+    @State private var text3Scale: CGFloat = 1.0
+    @State private var text3Rotation: Angle = .zero
+    @State private var lastText3Offset: CGSize = .zero
+    @State private var lastText3Scale: CGFloat = 1.0
+    @State private var lastText3Rotation: Angle = .zero
+    
     // Background image transform state
     @State private var imageScale: CGFloat = 1.0
     @State private var imageOffset: CGSize = .zero
@@ -38,6 +63,7 @@ struct PhotoEditorView: View {
     
     // Constants
     private let barcodeInitialWidth: CGFloat = 150
+    private let textBaseFontSize: CGFloat = 20
     private let edgeMargin: CGFloat = 32
     private let rotationSnapThreshold: Double = 5.0
     private let minimumImageScale: CGFloat = 1.0
@@ -160,7 +186,7 @@ struct PhotoEditorView: View {
                 }
             
             ZStack {
-                // Layer 1: Editable content layer (image + barcode with gestures)
+                // Layer 1: Editable content layer (image + barcode + text with gestures)
                 ZStack {
                     // Top extension area (blurred top edge of image)
                     if let topExtension = topExtensionImage {
@@ -232,6 +258,105 @@ struct PhotoEditorView: View {
                                     }
                             )
                     }
+                    
+                    // Text layer 1
+                    textLayerView(
+                        text: text1,
+                        offset: text1Offset,
+                        scale: text1Scale,
+                        rotation: text1Rotation,
+                        effectiveScale: effectiveScale,
+                        onDragChanged: { value in
+                            text1Offset = CGSize(
+                                width: lastText1Offset.width + value.translation.width / effectiveScale,
+                                height: lastText1Offset.height + value.translation.height / effectiveScale
+                            )
+                        },
+                        onDragEnded: { _ in
+                            lastText1Offset = text1Offset
+                        },
+                        onScaleChanged: { value in
+                            text1Scale = lastText1Scale * value
+                            text1Scale = max(0.5, min(3.0, text1Scale))
+                        },
+                        onScaleEnded: { _ in
+                            lastText1Scale = text1Scale
+                        },
+                        onRotationChanged: { value in
+                            text1Rotation = lastText1Rotation + value
+                        },
+                        onRotationEnded: { value in
+                            let finalRotation = lastText1Rotation + value
+                            text1Rotation = snapRotation(finalRotation)
+                            lastText1Rotation = text1Rotation
+                        }
+                    )
+                    
+                    // Text layer 2
+                    textLayerView(
+                        text: text2,
+                        offset: text2Offset,
+                        scale: text2Scale,
+                        rotation: text2Rotation,
+                        effectiveScale: effectiveScale,
+                        onDragChanged: { value in
+                            text2Offset = CGSize(
+                                width: lastText2Offset.width + value.translation.width / effectiveScale,
+                                height: lastText2Offset.height + value.translation.height / effectiveScale
+                            )
+                        },
+                        onDragEnded: { _ in
+                            lastText2Offset = text2Offset
+                        },
+                        onScaleChanged: { value in
+                            text2Scale = lastText2Scale * value
+                            text2Scale = max(0.5, min(3.0, text2Scale))
+                        },
+                        onScaleEnded: { _ in
+                            lastText2Scale = text2Scale
+                        },
+                        onRotationChanged: { value in
+                            text2Rotation = lastText2Rotation + value
+                        },
+                        onRotationEnded: { value in
+                            let finalRotation = lastText2Rotation + value
+                            text2Rotation = snapRotation(finalRotation)
+                            lastText2Rotation = text2Rotation
+                        }
+                    )
+                    
+                    // Text layer 3
+                    textLayerView(
+                        text: text3,
+                        offset: text3Offset,
+                        scale: text3Scale,
+                        rotation: text3Rotation,
+                        effectiveScale: effectiveScale,
+                        onDragChanged: { value in
+                            text3Offset = CGSize(
+                                width: lastText3Offset.width + value.translation.width / effectiveScale,
+                                height: lastText3Offset.height + value.translation.height / effectiveScale
+                            )
+                        },
+                        onDragEnded: { _ in
+                            lastText3Offset = text3Offset
+                        },
+                        onScaleChanged: { value in
+                            text3Scale = lastText3Scale * value
+                            text3Scale = max(0.5, min(3.0, text3Scale))
+                        },
+                        onScaleEnded: { _ in
+                            lastText3Scale = text3Scale
+                        },
+                        onRotationChanged: { value in
+                            text3Rotation = lastText3Rotation + value
+                        },
+                        onRotationEnded: { value in
+                            let finalRotation = lastText3Rotation + value
+                            text3Rotation = snapRotation(finalRotation)
+                            lastText3Rotation = text3Rotation
+                        }
+                    )
                 }
                 .frame(width: containerSize.width, height: containerSize.height)
                 .clipped()
@@ -267,8 +392,68 @@ struct PhotoEditorView: View {
                     width: image.size.width * baseScale,
                     height: image.size.height * baseScale
                 )
+                
+                // Set initial text positions (right bottom area, left-aligned, stacked vertically)
+                if text1Offset == .zero && text2Offset == .zero && text3Offset == .zero {
+                    let baseWidth = image.size.width * baseScale
+                    let baseHeight = image.size.height * baseScale
+                    let rightMargin = baseWidth * 0.35
+                    let bottomStart = baseHeight * 0.25
+                    let spacing: CGFloat = 30
+                    
+                    text1Offset = CGSize(width: rightMargin, height: bottomStart)
+                    text2Offset = CGSize(width: rightMargin, height: bottomStart + spacing)
+                    text3Offset = CGSize(width: rightMargin, height: bottomStart + spacing * 2)
+                    
+                    lastText1Offset = text1Offset
+                    lastText2Offset = text2Offset
+                    lastText3Offset = text3Offset
+                }
             }
         }
+    }
+    
+    // MARK: - Text Layer View
+    private func textLayerView(
+        text: String,
+        offset: CGSize,
+        scale: CGFloat,
+        rotation: Angle,
+        effectiveScale: CGFloat,
+        onDragChanged: @escaping (DragGesture.Value) -> Void,
+        onDragEnded: @escaping (DragGesture.Value) -> Void,
+        onScaleChanged: @escaping (CGFloat) -> Void,
+        onScaleEnded: @escaping (CGFloat) -> Void,
+        onRotationChanged: @escaping (Angle) -> Void,
+        onRotationEnded: @escaping (Angle) -> Void
+    ) -> some View {
+        Text(text)
+            .font(.system(size: textBaseFontSize, weight: .bold))
+            .foregroundColor(.white)
+            .shadow(color: .black, radius: 0, x: -1, y: -1)
+            .shadow(color: .black, radius: 0, x: 1, y: -1)
+            .shadow(color: .black, radius: 0, x: -1, y: 1)
+            .shadow(color: .black, radius: 0, x: 1, y: 1)
+            .scaleEffect(scale)
+            .rotationEffect(rotation)
+            .offset(offset)
+            .scaleEffect(effectiveScale)
+            .offset(imageOffset)
+            .gesture(
+                DragGesture()
+                    .onChanged(onDragChanged)
+                    .onEnded(onDragEnded)
+            )
+            .simultaneousGesture(
+                MagnificationGesture()
+                    .onChanged(onScaleChanged)
+                    .onEnded(onScaleEnded)
+            )
+            .simultaneousGesture(
+                RotationGesture()
+                    .onChanged(onRotationChanged)
+                    .onEnded(onRotationEnded)
+            )
     }
     
     private func calculateContainerSize(availableWidth: CGFloat, availableHeight: CGFloat) -> CGSize {
@@ -396,7 +581,7 @@ struct PhotoEditorView: View {
             // Action buttons
             HStack(spacing: 12) {
                 // Reset button
-                Button(action: resetBarcode) {
+                Button(action: resetAll) {
                     HStack {
                         Image(systemName: "arrow.counterclockwise")
                         Text("重置")
@@ -446,7 +631,7 @@ struct PhotoEditorView: View {
                 topExtensionImage = createTopExtension(from: image, height: topExtensionHeight)
                 
                 // Reset and set initial offset for aspect fill
-                resetBarcode()
+                resetAll()
             }
         }
     }
@@ -458,7 +643,7 @@ struct PhotoEditorView: View {
         barcodeImage = BarcodeGenerator.generateCode128(from: number, scheme: scheme)
     }
     
-    private func resetBarcode() {
+    private func resetAll() {
         // Reset barcode transform
         barcodeOffset = .zero
         barcodeScale = 1.0
@@ -467,6 +652,28 @@ struct PhotoEditorView: View {
         lastBarcodeOffset = .zero
         lastBarcodeScale = 1.0
         lastBarcodeRotation = .zero
+        
+        // Reset text layers transform
+        text1Offset = .zero
+        text1Scale = 1.0
+        text1Rotation = .zero
+        lastText1Offset = .zero
+        lastText1Scale = 1.0
+        lastText1Rotation = .zero
+        
+        text2Offset = .zero
+        text2Scale = 1.0
+        text2Rotation = .zero
+        lastText2Offset = .zero
+        lastText2Scale = 1.0
+        lastText2Rotation = .zero
+        
+        text3Offset = .zero
+        text3Scale = 1.0
+        text3Rotation = .zero
+        lastText3Offset = .zero
+        lastText3Scale = 1.0
+        lastText3Rotation = .zero
         
         // Reset background image transform
         imageScale = 1.0
@@ -598,41 +805,140 @@ struct PhotoEditorView: View {
                 // Draw background image
                 backgroundImage.draw(in: CGRect(origin: .zero, size: finalSize))
                 
-                // Calculate barcode size in final output
-                // barcodeScale is user's scaling
-                // displayToFinalScale converts from preview display size to output size
-                let barcodeWidth = barcodeInitialWidth * barcodeScale * displayToFinalScale
-                let barcodeHeight = barcodeWidth * (barcodeImg.size.height / barcodeImg.size.width)
-                
-                // Calculate barcode position in final output
-                // barcodeOffset is relative to background image center in preview display coordinates
-                // Convert to final output coordinates
-                let centerX = (finalSize.width / 2) + (barcodeOffset.width * displayToFinalScale)
-                let centerY = (finalSize.height / 2) + (barcodeOffset.height * displayToFinalScale)
-                
-                // Save context state
-                context.cgContext.saveGState()
-                
-                // Apply rotation around barcode center
-                context.cgContext.translateBy(x: centerX, y: centerY)
-                context.cgContext.rotate(by: CGFloat(barcodeRotation.radians))
-                
                 // Draw barcode
-                let barcodeRect = CGRect(
-                    x: -barcodeWidth / 2,
-                    y: -barcodeHeight / 2,
-                    width: barcodeWidth,
-                    height: barcodeHeight
+                drawBarcodeLayer(
+                    image: barcodeImg,
+                    offset: barcodeOffset,
+                    scale: barcodeScale,
+                    rotation: barcodeRotation,
+                    baseWidth: barcodeInitialWidth,
+                    displayToFinalScale: displayToFinalScale,
+                    finalSize: finalSize,
+                    context: context
                 )
                 
-                barcodeImg.draw(in: barcodeRect)
+                // Draw text layers
+                drawTextLayer(
+                    text: text1,
+                    offset: text1Offset,
+                    scale: text1Scale,
+                    rotation: text1Rotation,
+                    displayToFinalScale: displayToFinalScale,
+                    finalSize: finalSize,
+                    context: context
+                )
                 
-                // Restore context state
-                context.cgContext.restoreGState()
+                drawTextLayer(
+                    text: text2,
+                    offset: text2Offset,
+                    scale: text2Scale,
+                    rotation: text2Rotation,
+                    displayToFinalScale: displayToFinalScale,
+                    finalSize: finalSize,
+                    context: context
+                )
+                
+                drawTextLayer(
+                    text: text3,
+                    offset: text3Offset,
+                    scale: text3Scale,
+                    rotation: text3Rotation,
+                    displayToFinalScale: displayToFinalScale,
+                    finalSize: finalSize,
+                    context: context
+                )
             }
             
             saveImageToLibrary(compositeImage)
         }
+    }
+    
+    private func drawBarcodeLayer(
+        image: UIImage,
+        offset: CGSize,
+        scale: CGFloat,
+        rotation: Angle,
+        baseWidth: CGFloat,
+        displayToFinalScale: CGFloat,
+        finalSize: CGSize,
+        context: UIGraphicsImageRendererContext
+    ) {
+        // Calculate barcode size in final output
+        let barcodeWidth = baseWidth * scale * displayToFinalScale
+        let barcodeHeight = barcodeWidth * (image.size.height / image.size.width)
+        
+        // Calculate barcode position in final output
+        let centerX = (finalSize.width / 2) + (offset.width * displayToFinalScale)
+        let centerY = (finalSize.height / 2) + (offset.height * displayToFinalScale)
+        
+        // Save context state
+        context.cgContext.saveGState()
+        
+        // Apply rotation around barcode center
+        context.cgContext.translateBy(x: centerX, y: centerY)
+        context.cgContext.rotate(by: CGFloat(rotation.radians))
+        
+        // Draw barcode
+        let barcodeRect = CGRect(
+            x: -barcodeWidth / 2,
+            y: -barcodeHeight / 2,
+            width: barcodeWidth,
+            height: barcodeHeight
+        )
+        
+        image.draw(in: barcodeRect)
+        
+        // Restore context state
+        context.cgContext.restoreGState()
+    }
+    
+    private func drawTextLayer(
+        text: String,
+        offset: CGSize,
+        scale: CGFloat,
+        rotation: Angle,
+        displayToFinalScale: CGFloat,
+        finalSize: CGSize,
+        context: UIGraphicsImageRendererContext
+    ) {
+        // Calculate text position in final output
+        let centerX = (finalSize.width / 2) + (offset.width * displayToFinalScale)
+        let centerY = (finalSize.height / 2) + (offset.height * displayToFinalScale)
+        
+        // Calculate text size
+        let fontSize = textBaseFontSize * scale * displayToFinalScale
+        let font = UIFont.boldSystemFont(ofSize: fontSize)
+        
+        // Text attributes with stroke (black outline)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: UIColor.white,
+            .strokeColor: UIColor.black,
+            .strokeWidth: -3.0  // Negative value for both fill and stroke
+        ]
+        
+        let attributedString = NSAttributedString(string: text, attributes: attributes)
+        let textSize = attributedString.size()
+        
+        // Save context state
+        context.cgContext.saveGState()
+        
+        // Apply rotation around text center
+        context.cgContext.translateBy(x: centerX, y: centerY)
+        context.cgContext.rotate(by: CGFloat(rotation.radians))
+        
+        // Draw text
+        let textRect = CGRect(
+            x: -textSize.width / 2,
+            y: -textSize.height / 2,
+            width: textSize.width,
+            height: textSize.height
+        )
+        
+        attributedString.draw(in: textRect)
+        
+        // Restore context state
+        context.cgContext.restoreGState()
     }
     
     private func saveImageToLibrary(_ image: UIImage) {
