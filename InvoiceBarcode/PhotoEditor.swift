@@ -23,6 +23,7 @@ struct PhotoEditorView: View {
     @State private var selectedColorSchemeIndex: Int = 0
     @State private var lastBarcodeOffset: CGSize = .zero
     @State private var lastBarcodeScale: CGFloat = 1.0
+    @State private var lastBarcodeRotation: Angle = .zero
     
     // Background image transform state
     @State private var imageScale: CGFloat = 1.0
@@ -38,9 +39,9 @@ struct PhotoEditorView: View {
     // Constants
     private let barcodeInitialWidth: CGFloat = 150
     private let edgeMargin: CGFloat = 32
-    private let rotationSnapThreshold: Double = 5.0 // Degrees for snapping
-    private let minimumImageScale: CGFloat = 1.0 // Minimum scale to fill screen
-    private let extensionRatio: CGFloat = 1.0 / 3.0 // Extension height is 1/3 of image short edge
+    private let rotationSnapThreshold: Double = 5.0
+    private let minimumImageScale: CGFloat = 1.0
+    private let extensionRatio: CGFloat = 1.0 / 3.0
     
     var body: some View {
         NavigationView {
@@ -113,30 +114,34 @@ struct PhotoEditorView: View {
                 containerSize: containerSize
             )
             
-            let magnifyGesture = MagnificationGesture()
-                .onChanged { value in
-                    let newScale = lastImageScale * value
-                    let minScale = max(
-                        containerSize.width / (image.size.width * baseScale),
-                        containerSize.height / (extendedImageHeight * baseScale)
-                    )
-                    imageScale = max(minScale, newScale)
-                }
-                .onEnded { _ in
-                    lastImageScale = imageScale
-                }
-            
-            // Ensure minimum scale on first render
+            // Calculate minimum scale needed to fill container
             let minRequiredScale = max(
                 containerSize.width / (image.size.width * baseScale),
                 containerSize.height / (extendedImageHeight * baseScale)
             )
             
+            // Use minimum scale if current scale is too small
+            let effectiveScale = max(imageScale, minRequiredScale)
+            
+            // Calculate initial offset to align image bottom with container bottom
+            let scaledExtensionHeight = topExtensionHeight * baseScale * effectiveScale
+            let initialOffsetY = -scaledExtensionHeight / 2
+            let effectiveOffsetY = imageOffset.height == 0 ? initialOffsetY : imageOffset.height
+            
+            let magnifyGesture = MagnificationGesture()
+                .onChanged { value in
+                    let newScale = lastImageScale * value
+                    imageScale = max(minRequiredScale, newScale)
+                }
+                .onEnded { _ in
+                    lastImageScale = max(minRequiredScale, imageScale)
+                }
+            
             let panGesture = DragGesture()
                 .onChanged { value in
-                    let w = image.size.width * baseScale * imageScale
-                    let h = image.size.height * baseScale * imageScale
-                    let eh = topExtensionHeight * baseScale * imageScale
+                    let w = image.size.width * baseScale * effectiveScale
+                    let h = image.size.height * baseScale * effectiveScale
+                    let eh = topExtensionHeight * baseScale * effectiveScale
                     
                     var x = lastImageOffset.width + value.translation.width
                     var y = lastImageOffset.height + value.translation.height
@@ -154,10 +159,6 @@ struct PhotoEditorView: View {
                     lastImageOffset = imageOffset
                 }
             
-            let displayImageWidth = image.size.width * baseScale * imageScale
-            let displayImageHeight = image.size.height * baseScale * imageScale
-            let displayExtensionHeight = topExtensionHeight * baseScale * imageScale
-            
             ZStack {
                 // Layer 1: Editable content layer (image + barcode with gestures)
                 ZStack {
@@ -167,14 +168,14 @@ struct PhotoEditorView: View {
                         let extensionHeight = topExtensionHeight * baseScale
                         let imageHeight = image.size.height * baseScale * imageScale
                         let extHeight = topExtensionHeight * baseScale * imageScale
-                        let offsetY = imageOffset.height - (imageHeight / 2) - (extHeight / 2)
+                        let offsetY = effectiveOffsetY - (imageHeight / 2) - (extHeight / 2)
                         
                         Image(uiImage: topExtension)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(width: extensionWidth, height: extensionHeight)
                             .blur(radius: 20)
-                            .scaleEffect(imageScale)
+                            .scaleEffect(effectiveScale)
                             .offset(x: imageOffset.width, y: offsetY)
                     }
                     
@@ -182,7 +183,7 @@ struct PhotoEditorView: View {
                     Image(uiImage: image)
                         .resizable()
                         .frame(width: image.size.width * baseScale, height: image.size.height * baseScale)
-                        .scaleEffect(imageScale)
+                        .scaleEffect(effectiveScale)
                         .offset(x: imageOffset.width, y: imageOffset.height)
                         .gesture(magnifyGesture)
                         .simultaneousGesture(panGesture)
@@ -195,14 +196,14 @@ struct PhotoEditorView: View {
                             .frame(width: barcodeInitialWidth * barcodeScale)
                             .rotationEffect(barcodeRotation)
                             .offset(barcodeOffset)
-                            .scaleEffect(imageScale)
+                            .scaleEffect(effectiveScale)
                             .offset(imageOffset)
                             .gesture(
                                 DragGesture()
                                     .onChanged { value in
                                         barcodeOffset = CGSize(
-                                            width: lastBarcodeOffset.width + value.translation.width / imageScale,
-                                            height: lastBarcodeOffset.height + value.translation.height / imageScale
+                                            width: lastBarcodeOffset.width + value.translation.width / effectiveScale,
+                                            height: lastBarcodeOffset.height + value.translation.height / effectiveScale
                                         )
                                     }
                                     .onEnded { _ in
@@ -222,10 +223,12 @@ struct PhotoEditorView: View {
                             .simultaneousGesture(
                                 RotationGesture()
                                     .onChanged { value in
-                                        barcodeRotation = value
+                                        barcodeRotation = lastBarcodeRotation + value
                                     }
                                     .onEnded { value in
-                                        barcodeRotation = snapRotation(value)
+                                        let finalRotation = lastBarcodeRotation + value
+                                        barcodeRotation = snapRotation(finalRotation)
+                                        lastBarcodeRotation = barcodeRotation
                                     }
                             )
                     }
@@ -242,7 +245,7 @@ struct PhotoEditorView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black)
             .onAppear {
-                // Set initial scale to fill container
+                // Set initial scale and offset to fill container
                 let minScale = max(
                     containerSize.width / (image.size.width * baseScale),
                     containerSize.height / ((image.size.height + topExtensionHeight) * baseScale)
@@ -251,10 +254,19 @@ struct PhotoEditorView: View {
                     imageScale = minScale
                     lastImageScale = minScale
                 }
-                displayedImageSize = CGSize(width: image.size.width * baseScale, height: image.size.height * baseScale)
-            }
-            .onChange(of: geometry.size) { _, _ in
-                displayedImageSize = CGSize(width: image.size.width * baseScale, height: image.size.height * baseScale)
+                
+                // Set initial Y offset to align bottom edge
+                if imageOffset.height == 0 {
+                    let scaledExtensionHeight = topExtensionHeight * baseScale * minScale
+                    imageOffset.height = scaledExtensionHeight / 2
+                    lastImageOffset.height = scaledExtensionHeight / 2
+                }
+                
+                // Store the base displayed size for coordinate conversion
+                displayedImageSize = CGSize(
+                    width: image.size.width * baseScale,
+                    height: image.size.height * baseScale
+                )
             }
         }
     }
@@ -321,25 +333,6 @@ struct PhotoEditorView: View {
         .allowsHitTesting(false)
     }
     
-    private func calculateDisplayedSize(imageSize: CGSize, viewSize: CGSize) -> CGSize {
-        let imageAspect = imageSize.width / imageSize.height
-        let viewAspect = viewSize.width / viewSize.height
-        
-        if imageAspect > viewAspect {
-            // Image is wider, fit to width
-            return CGSize(
-                width: viewSize.width,
-                height: viewSize.width / imageAspect
-            )
-        } else {
-            // Image is taller, fit to height
-            return CGSize(
-                width: viewSize.height * imageAspect,
-                height: viewSize.height
-            )
-        }
-    }
-    
     // MARK: - Photo Picker Placeholder
     private var photoPickerPlaceholder: some View {
         VStack(spacing: 20) {
@@ -366,7 +359,7 @@ struct PhotoEditorView: View {
     private var toolbarView: some View {
         VStack(spacing: 12) {
             // Preview disclaimer
-            Text("以上元素僅供預覽，不會出現在最終圖片")
+            Text("以上元素僅供預覽,不會出現在最終圖片")
                 .font(.caption)
                 .foregroundColor(.white.opacity(0.7))
                 .padding(.horizontal)
@@ -451,6 +444,8 @@ struct PhotoEditorView: View {
                 topExtensionHeight = shortEdge * extensionRatio
                 
                 topExtensionImage = createTopExtension(from: image, height: topExtensionHeight)
+                
+                // Reset and set initial offset for aspect fill
                 resetBarcode()
             }
         }
@@ -464,13 +459,14 @@ struct PhotoEditorView: View {
     }
     
     private func resetBarcode() {
-        // Reset to center position
+        // Reset barcode transform
         barcodeOffset = .zero
         barcodeScale = 1.0
         barcodeRotation = .zero
         selectedColorSchemeIndex = 0
         lastBarcodeOffset = .zero
         lastBarcodeScale = 1.0
+        lastBarcodeRotation = .zero
         
         // Reset background image transform
         imageScale = 1.0
@@ -479,15 +475,6 @@ struct PhotoEditorView: View {
         lastImageOffset = .zero
         
         generateBarcode()
-    }
-    
-    private func enforceMinimumScale() {
-        if imageScale < minimumImageScale {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                imageScale = minimumImageScale
-                lastImageScale = minimumImageScale
-            }
-        }
     }
     
     private func formattedDate() -> String {
@@ -611,22 +598,22 @@ struct PhotoEditorView: View {
                 // Draw background image
                 backgroundImage.draw(in: CGRect(origin: .zero, size: finalSize))
                 
-                // Calculate barcode size considering both user scale and image scale
-                let totalBarcodeScale = barcodeScale * imageScale
-                let barcodeWidth = barcodeInitialWidth * totalBarcodeScale * displayToFinalScale
+                // Calculate barcode size in final output
+                // barcodeScale is user's scaling
+                // displayToFinalScale converts from preview display size to output size
+                let barcodeWidth = barcodeInitialWidth * barcodeScale * displayToFinalScale
                 let barcodeHeight = barcodeWidth * (barcodeImg.size.height / barcodeImg.size.width)
                 
-                // Calculate barcode position considering image offset and scale
-                let totalOffsetX = (barcodeOffset.width * imageScale) + imageOffset.width
-                let totalOffsetY = (barcodeOffset.height * imageScale) + imageOffset.height
-                
-                let centerX = (finalSize.width / 2) + (totalOffsetX * displayToFinalScale)
-                let centerY = (finalSize.height / 2) + (totalOffsetY * displayToFinalScale)
+                // Calculate barcode position in final output
+                // barcodeOffset is relative to background image center in preview display coordinates
+                // Convert to final output coordinates
+                let centerX = (finalSize.width / 2) + (barcodeOffset.width * displayToFinalScale)
+                let centerY = (finalSize.height / 2) + (barcodeOffset.height * displayToFinalScale)
                 
                 // Save context state
                 context.cgContext.saveGState()
                 
-                // Apply rotation
+                // Apply rotation around barcode center
                 context.cgContext.translateBy(x: centerX, y: centerY)
                 context.cgContext.rotate(by: CGFloat(barcodeRotation.radians))
                 
